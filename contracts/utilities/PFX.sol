@@ -259,13 +259,13 @@ contract Pfx {
      * @notice Construct a new PFX token
      * @param account The initial account to grant all the tokens
      */
-    constructor(address account, address _eaterAddress) public {
+    constructor(address account, address _eaterAddress, uint96 burnRate) public {
         // All the tokens are sent to this address
         balances[account] = uint96(initialSupply);
 
         // Set up the burning mechanism
         eaterAddress = _eaterAddress;
-        burnRate = 200; // 0.5% = 1/200
+        burnRate = _burnRate; // 0.5% = 1/200
 
         emit Transfer(address(0), account, initialSupply);
     }

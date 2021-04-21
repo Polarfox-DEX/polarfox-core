@@ -1,5 +1,3 @@
-// File contracts/SafeMath.sol
-
 pragma solidity ^0.5.16;
 pragma experimental ABIEncoderV2;
 
@@ -198,8 +196,17 @@ contract Pfx {
     /// @notice EIP-20 token decimals for this token
     uint8 public constant decimals = 18;
 
-    /// @notice Total number of tokens in circulation
-    uint public constant totalSupply = 269_000_000e18 + 9_250_000e18; // 269 million PFX + 9.25 million PFX (presale)
+    /// @notice Initial number of tokens in circulation
+    uint public constant initialSupply = 269_000_000e18 + 9_250_000e18; // 269 million PFX + 9.25 million PFX (presale)
+
+    /// @notice Current number of tokens in circulation
+    uint public totalSupply = initialSupply;
+
+    /// @notice Burn rate for this token
+    uint96 public burnRate;
+
+    /// @notice Eater address - the address to which we send the burned tokens
+    address public eaterAddress;
 
     /// @notice Allowance amounts on behalf of others
     mapping (address => mapping (address => uint96)) internal allowances;
@@ -250,9 +257,15 @@ contract Pfx {
      * @notice Construct a new PFX token
      * @param account The initial account to grant all the tokens
      */
-    constructor(address account) public {
-        balances[account] = uint96(totalSupply);
-        emit Transfer(address(0), account, totalSupply);
+    constructor(address account, address _eaterAddress) public {
+        // All the tokens are sent to this address
+        balances[account] = uint96(initialSupply);
+
+        // Set up the burning mechanism
+        eaterAddress = _eaterAddress;
+        burnRate = 200; // 0.5% = 1/200
+
+        emit Transfer(address(0), account, initialSupply);
     }
 
     /**
@@ -453,10 +466,33 @@ contract Pfx {
 
     function _transferTokens(address src, address dst, uint96 amount) internal {
         require(src != address(0), "Pfx::_transferTokens: cannot transfer from the zero address");
+        require(src != address(eaterAddress), "Pfx::_transferTokens: cannot transfer from the eater address");
         require(dst != address(0), "Pfx::_transferTokens: cannot transfer to the zero address");
 
+        /**
+        * --- Polarfox burning process ---
+        * For every 100 PFX that are transferred, if the burnRate is 0.5%,
+        * 99.5 PFX reach their source destination; 0.5 PFX are burned.
+        * To burn those PFX, they are sent to an 'eater address'.
+        * This is an address whose keys have been burned and which is rendered completely useless.
+        * As an additional safety measure, this address cannot send any PFX tokens - it can only receive them.
+        */
+
+        // 0.5% = 1/200
+        uint96 toBurn = amount / burnRate;
+
+        // Get 100% of the tokens
         balances[src] = sub96(balances[src], amount, "Pfx::_transferTokens: transfer amount exceeds balance");
-        balances[dst] = add96(balances[dst], amount, "Pfx::_transferTokens: transfer amount overflows");
+
+        // Send 99.5% to the recipient
+        balances[dst] = add96(balances[dst], amount-toBurn, "Pfx::_transferTokens: transfer amount overflows");
+
+        // Burn the remaining 0.5% = send them to the eater address
+        balances[eaterAddress] = add96(balances[eaterAddress], toBurn, "Pfx::_transferTokens: burn failed");
+
+        // Reduce the total supply by 0.5%
+        totalSupply -= toBurn;
+
         emit Transfer(src, dst, amount);
 
         _moveDelegates(delegates[src], delegates[dst], amount);

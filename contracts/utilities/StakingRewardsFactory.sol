@@ -667,6 +667,7 @@ contract StakingRewardsFactory is Ownable {
     // immutables
     address public rewardsToken;
     uint public stakingRewardsGenesis;
+    uint public burnRate;
 
     // the staking tokens for which the rewards contract has been deployed
     address[] public stakingTokens;
@@ -682,12 +683,15 @@ contract StakingRewardsFactory is Ownable {
 
     constructor(
         address _rewardsToken,
-        uint _stakingRewardsGenesis
+        uint _stakingRewardsGenesis,
+        uint _burnRate
     ) Ownable() public {
         require(_stakingRewardsGenesis >= block.timestamp, 'StakingRewardsFactory::constructor: genesis too soon');
+        require(_burnRate != 1, 'StakingRewardsFactory::constructor: burn rate cannot be 100%');
 
         rewardsToken = _rewardsToken;
         stakingRewardsGenesis = _stakingRewardsGenesis;
+        burnRate = _burnRate;
     }
 
     ///// permissioned functions
@@ -725,8 +729,13 @@ contract StakingRewardsFactory is Ownable {
             uint rewardAmount = info.rewardAmount;
             info.rewardAmount = 0;
 
+            uint amountToTransfer = rewardAmount;
+            if(burnRate > 0) {
+                amountToTransfer = SafeMath.div(SafeMath.mul(rewardAmount, burnRate), burnRate-1);
+            }
+
             require(
-                IERC20(rewardsToken).transfer(info.stakingRewards, rewardAmount),
+                IERC20(rewardsToken).transfer(info.stakingRewards, amountToTransfer),
                 'StakingRewardsFactory::notifyRewardAmount: transfer failed'
             );
             StakingRewards(info.stakingRewards).notifyRewardAmount(rewardAmount);

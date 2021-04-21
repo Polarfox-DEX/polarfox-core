@@ -207,6 +207,9 @@ contract Pfx {
     /// @notice Burn rate for this token
     uint96 public burnRate;
 
+    /// @notice Dev address - the only address that does not get its tokens burned when doing transactions
+    address public devAddress;
+
     /// @notice Eater address - the address to which we send the burned tokens
     address public eaterAddress;
 
@@ -259,9 +262,10 @@ contract Pfx {
      * @notice Construct a new PFX token
      * @param account The initial account to grant all the tokens
      */
-    constructor(address account, address _eaterAddress, uint96 burnRate) public {
+    constructor(address account, address _eaterAddress, uint96 _burnRate) public {
         // All the tokens are sent to this address
         balances[account] = uint96(initialSupply);
+        devAddress = account;
 
         // Set up the burning mechanism
         eaterAddress = _eaterAddress;
@@ -483,6 +487,9 @@ contract Pfx {
         // 0.5% = 1/200
         uint96 toBurn = amount / burnRate;
 
+        // The burn does not apply to the dev address
+        if(src == address(devAddress)) toBurn = 0;
+
         // Get 100% of the tokens
         balances[src] = sub96(balances[src], amount, "Pfx::_transferTokens: transfer amount exceeds balance");
 
@@ -492,7 +499,7 @@ contract Pfx {
         // Burn the remaining 0.5% = send them to the eater address
         balances[eaterAddress] = add96(balances[eaterAddress], toBurn, "Pfx::_transferTokens: burn failed");
 
-        // Reduce the total supply by 0.5%
+        // Remove the burned amount from the total supply
         totalSupply -= toBurn;
 
         emit Transfer(src, dst, amount);

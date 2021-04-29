@@ -188,7 +188,93 @@ library SafeMath {
     }
 }
 
-contract Pfx {
+/**
+ * @dev Contract module which provides a basic access control mechanism, where
+ * there is an account (an owner) that can be granted exclusive access to
+ * specific functions.
+ *
+ * By default, the owner account will be the one that deploys the contract. This
+ * can later be changed with {transferOwnership}.
+ *
+ * This module is used through inheritance. It will make available the modifier
+ * `onlyOwner`, which can be applied to your functions to restrict their use to
+ * the owner.
+ */
+contract Ownable is Context {
+    address private _owner;
+    address private _previousOwner;
+    uint256 private _lockTime;
+
+    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+
+    /**
+     * @dev Initializes the contract setting the deployer as the initial owner.
+     */
+    constructor () internal {
+        address msgSender = _msgSender();
+        _owner = msgSender;
+        emit OwnershipTransferred(address(0), msgSender);
+    }
+
+    /**
+     * @dev Returns the address of the current owner.
+     */
+    function owner() public view returns (address) {
+        return _owner;
+    }
+
+    /**
+     * @dev Throws if called by any account other than the owner.
+     */
+    modifier onlyOwner() {
+        require(_owner == _msgSender(), "Ownable: caller is not the owner");
+        _;
+    }
+
+     /**
+     * @dev Leaves the contract without owner. It will not be possible to call
+     * `onlyOwner` functions anymore. Can only be called by the current owner.
+     *
+     * NOTE: Renouncing ownership will leave the contract without an owner,
+     * thereby removing any functionality that is only available to the owner.
+     */
+    function renounceOwnership() public virtual onlyOwner {
+        emit OwnershipTransferred(_owner, address(0));
+        _owner = address(0);
+    }
+
+    /**
+     * @dev Transfers ownership of the contract to a new account (`newOwner`).
+     * Can only be called by the current owner.
+     */
+    function transferOwnership(address newOwner) public virtual onlyOwner {
+        require(newOwner != address(0), "Ownable: new owner is the zero address");
+        emit OwnershipTransferred(_owner, newOwner);
+        _owner = newOwner;
+    }
+
+    function geUnlockTime() public view returns (uint256) {
+        return _lockTime;
+    }
+
+    //Locks the contract for owner for the amount of time provided
+    function lock(uint256 time) public virtual onlyOwner {
+        _previousOwner = _owner;
+        _owner = address(0);
+        _lockTime = now + time;
+        emit OwnershipTransferred(_owner, address(0));
+    }
+    
+    //Unlocks the contract for owner when _lockTime is exceeds
+    function unlock() public virtual {
+        require(_previousOwner == msg.sender, "You don't have permission to unlock");
+        require(now > _lockTime , "Contract is locked until 7 days");
+        emit OwnershipTransferred(_owner, _previousOwner);
+        _owner = _previousOwner;
+    }
+}
+
+contract Pfx is Ownable {
     /// @notice EIP-20 token name for this token
     string public constant name = "Polarfox";
 
@@ -202,16 +288,28 @@ contract Pfx {
     uint public constant initialSupply = 269_000_000e18 + 9_250_000e18; // 269 million PFX + 9.25 million PFX (presale)
 
     /// @notice Current number of tokens in circulation
-    uint public totalSupply = initialSupply;
+    uint public totalSupply;
 
-    /// @notice Burn rate for this token
-    uint96 public burnRate;
+    /// @notice Current burn fee
+    uint96 public burnFee;
 
-    /// @notice Dev address - the only address that does not get its tokens burned when doing transactions
+    /// @notice Current dev funding fee
+    uint96 public devFee;
+
+    /// @notice Dev address - the address that receives the dev funding fees
     address public devAddress;
 
-    /// @notice Eater address - the address to which we send the burned tokens
-    address public eaterAddress;
+    /// @notice True if the token is burning, false otherwise
+    bool public isBurning;
+
+    /// @notice True if dev fees are charged, false otherwise
+    bool public chargeDevFees;
+
+    /// @notice IsExcludedSrc - the addresses that are excluded from the burn / dev fees when sending transactions
+    mapping (address => bool) public isExcludedSrc;
+
+    /// @notice IsExcludedDst - the addresses that are excluded from the burn / dev fees when receiving transactions
+    mapping (address => bool) public isExcludedDst;
 
     /// @notice Allowance amounts on behalf of others
     mapping (address => mapping (address => uint96)) internal allowances;
@@ -262,14 +360,17 @@ contract Pfx {
      * @notice Construct a new PFX token
      * @param account The initial account to grant all the tokens
      */
-    constructor(address account, address _eaterAddress, uint96 _burnRate) public {
+    constructor(address account) public {
         // All the tokens are sent to this address
         balances[account] = uint96(initialSupply);
         devAddress = account;
+        totalSupply = initialSupply;
 
-        // Set up the burning mechanism
-        eaterAddress = _eaterAddress;
-        burnRate = _burnRate; // 0.5% = 1/200
+        burnFee = 370; // 0.27% = 1/370
+        devFee = 3333; // 0.03% = 1/3333
+
+        isBurning = true;
+        chargeDevFees = true;
 
         emit Transfer(address(0), account, initialSupply);
     }
@@ -470,41 +571,93 @@ contract Pfx {
         _moveDelegates(currentDelegate, delegatee, delegatorBalance);
     }
 
+    // Internal transfer mechanism call and safety checks
     function _transferTokens(address src, address dst, uint96 amount) internal {
         require(src != address(0), "Pfx::_transferTokens: cannot transfer from the zero address");
-        require(src != address(eaterAddress), "Pfx::_transferTokens: cannot transfer from the eater address");
         require(dst != address(0), "Pfx::_transferTokens: cannot transfer to the zero address");
 
-        /**
-        * --- Polarfox burning process ---
-        * For every 100 PFX that are transferred, if the burnRate is 0.5%,
-        * 99.5 PFX reach their source destination; 0.5 PFX are burned.
-        * To burn those PFX, they are sent to an 'eater address'.
-        * This is an address whose keys have been burned and which is rendered completely useless.
-        * As an additional safety measure, this address cannot send any PFX tokens - it can only receive them.
-        */
-
-        // 0.5% = 1/200
-        uint96 toBurn = amount / burnRate;
-
-        // The burn does not apply to the dev address
-        if(src == address(devAddress)) toBurn = 0;
-
-        // Get 100% of the tokens
-        balances[src] = sub96(balances[src], amount, "Pfx::_transferTokens: transfer amount exceeds balance");
-
-        // Send 99.5% to the recipient
-        balances[dst] = add96(balances[dst], amount-toBurn, "Pfx::_transferTokens: transfer amount overflows");
-
-        // Burn the remaining 0.5% = send them to the eater address
-        balances[eaterAddress] = add96(balances[eaterAddress], toBurn, "Pfx::_transferTokens: burn failed");
-
-        // Remove the burned amount from the total supply
-        totalSupply -= toBurn;
+        if (isExcludedSrc[src] || isExcludedDst[dst]) _transferExcluded(src, dst, amount);
+        else _transferStandard(src, dst, amount);
 
         emit Transfer(src, dst, amount);
 
         _moveDelegates(delegates[src], delegates[dst], amount);
+    }
+
+    // Internal transfer mechanism with fees
+    function _transferStandard(address src, address dst, uint96 amount) private {
+        uint96 burnAmount = 0;
+        uint96 devAmount = 0;
+
+        // Get 100% of the tokens
+        balances[src] = sub96(balances[src], amount, "Pfx::_transferStandard: transfer amount exceeds balance");
+
+        if (isBurning) {
+            // Burn (100/burnFee)% = send them to the zero address
+            burnAmount = amount.div(burnFee);
+            balances[address(0)] = add96(balances[address(0)], burnAmount, "Pfx::_transferStandard: burn failed");
+            // Reduce the total supply accordingly
+            totalSupply = totalSupply.sub(burnAmount);
+        }
+
+        if (chargeDevFees) {
+            // Send (100/devFee)%  to the dev wallet
+            devAmount = amount.div(devFee);
+            balances[devAddress] = add96(balances[devAddress], devAmount, "Pfx::_transferStandard: dev transfer failed");
+        }
+
+        // Send the rest to the recipient
+        uint96 rest = amount.sub(burnAmount).sub(devAmount);
+        balances[dst] = add96(balances[dst], rest, "Pfx::_transferStandard: transfer amount overflows");
+    }
+
+    // Internal transfer mechanism without fees
+    function _transferExcluded(address src, address dst, uint96 amount) private {
+        // Get 100% of the tokens
+        balances[src] = sub96(balances[src], amount, "Pfx::_transferFromExcluded: transfer amount exceeds balance");
+
+        // Send 100% to the recipient
+        balances[dst] = add96(balances[dst], amount, "Pfx::_transferFromExcluded: transfer amount overflows");
+    }
+
+    function includeSrc(address account) public onlyOwner {
+        isExcludedSrc[account] = false;
+    }
+
+    function includeDst(address account) public onlyOwner {
+        isExcludedDst[account] = false;
+    }
+
+    function excludeSrc(address account) public onlyOwner {
+        isExcludedSrc[account] = true;
+    }
+
+    function excludeDst(address account) public onlyOwner {
+        isExcludedDst[account] = true;
+    }
+
+    function setBurnFee(uint96 _burnFee) public onlyOwner {
+        burnFee = _burnFee;
+    }
+
+    function setDevFee(uint96 _devFee) public onlyOwner {
+        devFee = _devFee;
+    }
+
+    function startBurning() public onlyOwner {
+        isBurning = true;
+    }
+
+    function stopBurning() public onlyOwner {
+        isBurning = false;
+    }
+
+    function chargeDevFees() public onlyOwner {
+        chargeDevFees = true;
+    }
+
+    function stopDevFees() public onlyOwner {
+        chargeDevFees = false;
     }
 
     function _moveDelegates(address srcRep, address dstRep, uint96 amount) internal {

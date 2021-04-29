@@ -1,6 +1,8 @@
+// SPDX-License-Identifier: Unlicensed
+
 // File contracts/SafeMath.sol
 
-pragma solidity ^0.5.16;
+pragma solidity ^0.6.12;
 pragma experimental ABIEncoderV2;
 
 // From https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/math/Math.sol
@@ -188,6 +190,17 @@ library SafeMath {
     }
 }
 
+contract Context {
+    function _msgSender() internal view virtual returns (address payable) {
+        return msg.sender;
+    }
+
+    function _msgData() internal view virtual returns (bytes memory) {
+        this; // silence state mutability warning without generating bytecode - see https://github.com/ethereum/solidity/issues/2691
+        return msg.data;
+    }
+}
+
 /**
  * @dev Contract module which provides a basic access control mechanism, where
  * there is an account (an owner) that can be granted exclusive access to
@@ -311,10 +324,10 @@ contract Pfx is Ownable {
     /// @notice IsExcludedDst - the addresses that are excluded from the burn / dev fees when receiving transactions
     mapping (address => bool) public isExcludedDst;
 
-    /// @notice Allowance amounts on behalf of others
+    /// @dev Allowance amounts on behalf of others
     mapping (address => mapping (address => uint96)) internal allowances;
 
-    /// @notice Official record of token balances for each account
+    /// @dev Official record of token balances for each account
     mapping (address => uint96) internal balances;
 
     /// @notice A record of each accounts delegate
@@ -594,21 +607,25 @@ contract Pfx is Ownable {
 
         if (isBurning) {
             // Burn (100/burnFee)% = send them to the zero address
-            burnAmount = amount.div(burnFee);
+            burnAmount = div96(amount, burnFee, "Pfx::_transferStandard: burn calculation failed");
             balances[address(0)] = add96(balances[address(0)], burnAmount, "Pfx::_transferStandard: burn failed");
             // Reduce the total supply accordingly
-            totalSupply = totalSupply.sub(burnAmount);
+            totalSupply = SafeMath.sub(totalSupply, uint256(burnAmount), "Pfx::_transferStandard: total supply reduction failed");
         }
 
         if (chargeDevFees) {
             // Send (100/devFee)%  to the dev wallet
-            devAmount = amount.div(devFee);
+            devAmount = div96(amount, devFee);
             balances[devAddress] = add96(balances[devAddress], devAmount, "Pfx::_transferStandard: dev transfer failed");
         }
 
         // Send the rest to the recipient
-        uint96 rest = amount.sub(burnAmount).sub(devAmount);
-        balances[dst] = add96(balances[dst], rest, "Pfx::_transferStandard: transfer amount overflows");
+        uint96 rest = sub96(
+            sub96(amount, burnAmount, "Pfx::_transferStandard: transfer amount overflows - 1"),
+            devAmount,
+            "Pfx::_transferStandard: transfer amount overflows - 2"
+        );
+        balances[dst] = add96(balances[dst], rest, "Pfx::_transferStandard: transfer amount overflows - 3");
     }
 
     // Internal transfer mechanism without fees
@@ -652,7 +669,7 @@ contract Pfx is Ownable {
         isBurning = false;
     }
 
-    function chargeDevFees() public onlyOwner {
+    function startDevFees() public onlyOwner {
         chargeDevFees = true;
     }
 
@@ -710,6 +727,19 @@ contract Pfx is Ownable {
     function sub96(uint96 a, uint96 b, string memory errorMessage) internal pure returns (uint96) {
         require(b <= a, errorMessage);
         return a - b;
+    }
+    
+    function div96(uint96 a, uint96 b) internal pure returns (uint96) {
+        return div96(a, b, "SafeMath: division by zero (uint96)");
+    }
+
+    function div96(uint96 a, uint96 b, string memory errorMessage) internal pure returns (uint96) {
+        // Solidity only automatically asserts when dividing by 0
+        require(b > 0, errorMessage);
+        uint96 c = a / b;
+        // assert(a == b * c + a % b); // There is no case in which this doesn't hold
+
+        return c;
     }
 
     function getChainId() internal pure returns (uint) {

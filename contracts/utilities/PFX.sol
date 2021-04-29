@@ -631,10 +631,10 @@ contract Pfx is Ownable {
     // Internal transfer mechanism without fees
     function _transferExcluded(address src, address dst, uint96 amount) private {
         // Get 100% of the tokens
-        balances[src] = sub96(balances[src], amount, "Pfx::_transferFromExcluded: transfer amount exceeds balance");
+        balances[src] = sub96(balances[src], amount, "Pfx::_transferExcluded: transfer amount exceeds balance");
 
         // Send 100% to the recipient
-        balances[dst] = add96(balances[dst], amount, "Pfx::_transferFromExcluded: transfer amount overflows");
+        balances[dst] = add96(balances[dst], amount, "Pfx::_transferExcluded: transfer amount overflows");
     }
 
     function includeSrc(address account) public onlyOwner {

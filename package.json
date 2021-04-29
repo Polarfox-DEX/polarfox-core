@@ -1,7 +1,7 @@
 {
   "name": "@polarfox/core",
   "description": "Core contracts for the Polarfox DEX.",
-  "version": "2.2.0",
+  "version": "2.2.1",
   "repository": {
     "type": "git",
     "url": "https://github.com/Polarfox-DEX/polarfox-core"
@@ -20,6 +20,7 @@
   ],
   "files": [
     "contracts",
+    "other_contracts",
     "build"
   ],
   "engines": {

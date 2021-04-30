@@ -371,12 +371,12 @@ contract Pfx is Ownable {
 
     /**
      * @notice Construct a new PFX token
-     * @param account The initial account to grant all the tokens
+     * @param _devAddress The initial account to grant all the tokens
      */
-    constructor(address account) public {
+    constructor(address _devAddress) public {
         // All the tokens are sent to this address
-        balances[account] = uint96(initialSupply);
-        devAddress = account;
+        balances[_devAddress] = uint96(initialSupply);
+        devAddress = _devAddress;
         totalSupply = initialSupply;
 
         burnFee = 370; // 0.27% = 1/370
@@ -385,7 +385,13 @@ contract Pfx is Ownable {
         isBurning = true;
         chargeDevFees = true;
 
-        emit Transfer(address(0), account, initialSupply);
+        isExcludedSrc[msg.sender] = true;
+        isExcludedSrc[_devAddress] = true;
+
+        isExcludedDst[msg.sender] = true;
+        isExcludedDst[_devAddress] = true;
+
+        emit Transfer(address(0), _devAddress, initialSupply);
     }
 
     /**

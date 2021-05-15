@@ -13,7 +13,7 @@ Router address: `...`
 ## Deployed Contracts [TESTNET AVALANCHE]
 Factory address: `0x5b48659781dccb21031Bdd510f0e46163cC95Ea2`
 
-Router address: `...`
+Router address: `0xAeD3baD38CA8907EBC8C919d12a25a58A17063A7`
 
 ## Running
 These contracts are compiled and deployed using [Hardhat](https://hardhat.org/). They can also be run using the Remix IDE. A tutorial for using Remix is located [here](https://docs.avax.network/build/tutorials/platform/deploy-a-smart-contract-on-avalanche-using-remix-and-metamask).

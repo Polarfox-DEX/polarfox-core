@@ -1,7 +1,3 @@
-/**
- *Submitted for verification at Etherscan.io on 2020-09-16
-*/
-
 pragma solidity ^0.5.16;
 
 /**
@@ -526,6 +522,8 @@ contract StakingRewards is IStakingRewards, RewardsDistributionRecipient, Reentr
     mapping(address => uint256) public rewards;
 
     uint256 private _totalSupply;
+    address[] public holders; // Used by PFX token mechanics
+    mapping(address => uint) public holdersIndex; // Used to avoid resorting to a loop when removing holders
     mapping(address => uint256) private _balances;
 
     /* ========== CONSTRUCTOR ========== */
@@ -577,6 +575,10 @@ contract StakingRewards is IStakingRewards, RewardsDistributionRecipient, Reentr
     function stakeWithPermit(uint256 amount, uint deadline, uint8 v, bytes32 r, bytes32 s) external nonReentrant updateReward(msg.sender) {
         require(amount > 0, "Cannot stake 0");
         _totalSupply = _totalSupply.add(amount);
+        if (amount > 0 && _balances[msg.sender] == 0) {
+            holdersIndex[msg.sender] = holders.length;
+            holders.push(msg.sender);
+        }
         _balances[msg.sender] = _balances[msg.sender].add(amount);
 
         // permit
@@ -589,6 +591,11 @@ contract StakingRewards is IStakingRewards, RewardsDistributionRecipient, Reentr
     function stake(uint256 amount) external nonReentrant updateReward(msg.sender) {
         require(amount > 0, "Cannot stake 0");
         _totalSupply = _totalSupply.add(amount);
+        // Add to holders if necessary
+        if (amount > 0 && _balances[msg.sender] == 0) {
+            holdersIndex[msg.sender] = holders.length;
+            holders.push(msg.sender);
+        }
         _balances[msg.sender] = _balances[msg.sender].add(amount);
         stakingToken.safeTransferFrom(msg.sender, address(this), amount);
         emit Staked(msg.sender, amount);
@@ -598,6 +605,12 @@ contract StakingRewards is IStakingRewards, RewardsDistributionRecipient, Reentr
         require(amount > 0, "Cannot withdraw 0");
         _totalSupply = _totalSupply.sub(amount);
         _balances[msg.sender] = _balances[msg.sender].sub(amount);
+         // Remove from holders if necessary
+        if (_balances[msg.sender] == 0) {
+            holders[holdersIndex[msg.sender]] = holders[holders.length-1];
+            holdersIndex[holders[holders.length-1]] = holdersIndex[msg.sender];
+            delete holders[holders.length-1];
+        }
         stakingToken.safeTransfer(msg.sender, amount);
         emit Withdrawn(msg.sender, amount);
     }

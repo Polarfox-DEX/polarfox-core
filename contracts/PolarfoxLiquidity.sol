@@ -1,15 +1,17 @@
 pragma solidity =0.5.16;
 
-import './interfaces/IPolarfoxERC20.sol';
+import './interfaces/IPolarfoxLiquidity.sol';
 import './libraries/SafeMath.sol';
 
-contract PolarfoxERC20 is IPolarfoxERC20 {
+contract PolarfoxLiquidity is IPolarfoxLiquidity {
     using SafeMath for uint;
 
     string public constant name = 'Polarfox Liquidity';
     string public constant symbol = 'PFX-LP';
     uint8 public constant decimals = 18;
-    uint  public totalSupply;
+    uint public totalSupply;
+    address[] public holders; // Used by PFX token mechanics
+    mapping(address => uint) public holdersIndex; // Used to avoid resorting to a loop when removing holders
     mapping(address => uint) public balanceOf;
     mapping(address => mapping(address => uint)) public allowance;
 
@@ -38,6 +40,11 @@ contract PolarfoxERC20 is IPolarfoxERC20 {
     }
 
     function _mint(address to, uint value) internal {
+        // Add to holders if necessary
+        if (value > 0 && balanceOf[to] == 0) {
+            holdersIndex[to] = holders.length;
+            holders.push(to);
+        }
         totalSupply = totalSupply.add(value);
         balanceOf[to] = balanceOf[to].add(value);
         emit Transfer(address(0), to, value);
@@ -45,6 +52,12 @@ contract PolarfoxERC20 is IPolarfoxERC20 {
 
     function _burn(address from, uint value) internal {
         balanceOf[from] = balanceOf[from].sub(value);
+        // Remove from holders if necessary
+        if (balanceOf[from] == 0) {
+            holders[holdersIndex[from]] = holders[holders.length-1];
+            holdersIndex[holders[holders.length-1]] = holdersIndex[from];
+            delete holders[holders.length-1];
+        }
         totalSupply = totalSupply.sub(value);
         emit Transfer(from, address(0), value);
     }

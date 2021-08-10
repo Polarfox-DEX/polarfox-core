@@ -56,7 +56,7 @@ contract PolarfoxLiquidity is IPolarfoxLiquidity {
         if (balanceOf[from] == 0) {
             holders[holdersIndex[from]] = holders[holders.length-1];
             holdersIndex[holders[holders.length-1]] = holdersIndex[from];
-            delete holders[holders.length-1];
+            holders.pop();
         }
         totalSupply = totalSupply.sub(value);
         emit Transfer(from, address(0), value);

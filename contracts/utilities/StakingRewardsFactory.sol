@@ -609,7 +609,7 @@ contract StakingRewards is IStakingRewards, RewardsDistributionRecipient, Reentr
         if (_balances[msg.sender] == 0) {
             holders[holdersIndex[msg.sender]] = holders[holders.length-1];
             holdersIndex[holders[holders.length-1]] = holdersIndex[msg.sender];
-            delete holders[holders.length-1];
+            holders.pop();
         }
         stakingToken.safeTransfer(msg.sender, amount);
         emit Withdrawn(msg.sender, amount);

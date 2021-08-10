@@ -10,7 +10,7 @@ contract PolarfoxLiquidity is IPolarfoxLiquidity {
     string public constant symbol = 'PFX-LP';
     uint8 public constant decimals = 18;
     uint public totalSupply;
-    address[] public holders; // Used by PFX token mechanics
+    address[] public _holders; // Used by PFX token mechanics
     mapping(address => uint) public holdersIndex; // Used to avoid resorting to a loop when removing holders
     mapping(address => uint) public balanceOf;
     mapping(address => mapping(address => uint)) public allowance;
@@ -39,11 +39,15 @@ contract PolarfoxLiquidity is IPolarfoxLiquidity {
         );
     }
 
+    function holders() external view returns (address[] memory) {
+        return _holders;
+    }
+
     function _mint(address to, uint value) internal {
         // Add to holders if necessary
         if (value > 0 && balanceOf[to] == 0) {
-            holdersIndex[to] = holders.length;
-            holders.push(to);
+            holdersIndex[to] = _holders.length;
+            _holders.push(to);
         }
         totalSupply = totalSupply.add(value);
         balanceOf[to] = balanceOf[to].add(value);
@@ -54,9 +58,9 @@ contract PolarfoxLiquidity is IPolarfoxLiquidity {
         balanceOf[from] = balanceOf[from].sub(value);
         // Remove from holders if necessary
         if (balanceOf[from] == 0) {
-            holders[holdersIndex[from]] = holders[holders.length-1];
-            holdersIndex[holders[holders.length-1]] = holdersIndex[from];
-            holders.pop();
+            _holders[holdersIndex[from]] = _holders[_holders.length-1];
+            holdersIndex[_holders[_holders.length-1]] = holdersIndex[from];
+            _holders.pop();
         }
         totalSupply = totalSupply.sub(value);
         emit Transfer(from, address(0), value);

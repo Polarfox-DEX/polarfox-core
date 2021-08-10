@@ -8,6 +8,8 @@ interface IPolarfoxLiquidity {
     function symbol() external pure returns (string memory);
     function decimals() external pure returns (uint8);
     function totalSupply() external view returns (uint);
+    function holders() external view returns (address[] memory);
+    function holdersIndex(address owner) external view returns (uint);
     function balanceOf(address owner) external view returns (uint);
     function allowance(address owner, address spender) external view returns (uint);
 

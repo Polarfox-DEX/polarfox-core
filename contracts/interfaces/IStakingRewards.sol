@@ -15,7 +15,7 @@ interface IStakingRewards {
 
     function holders() external view returns (address[] memory);
 
-    function holdersIndex(address owner) external view returns (uint);
+    function holdersIndex(address owner) external view returns (uint256);
 
     function balanceOf(address account) external view returns (uint256);
 
@@ -28,15 +28,4 @@ interface IStakingRewards {
     function getReward() external;
 
     function exit() external;
-}
-
-contract RewardsDistributionRecipient {
-    address public rewardsDistribution;
-
-    function notifyRewardAmount(uint256 reward) external;
-
-    modifier onlyRewardsDistribution() {
-        require(msg.sender == rewardsDistribution, 'Caller is not RewardsDistribution contract');
-        _;
-    }
 }

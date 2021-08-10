@@ -3,6 +3,7 @@ pragma solidity ^0.5.16;
 import './interfaces/IStakingRewards.sol';
 import './interfaces/IERC20.sol';
 import './interfaces/IPolarfoxLiquidity.sol';
+import './libraries/RewardsDistributionRecipient.sol';
 import './libraries/ReentrancyGuard.sol';
 import './libraries/SafeMath.sol';
 import './libraries/SafeERC20.sol';

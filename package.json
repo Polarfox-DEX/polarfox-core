@@ -1,7 +1,7 @@
 {
   "name": "@polarfox/core",
   "description": "Core contracts for the Polarfox DEX.",
-  "version": "2.5.2",
+  "version": "2.6.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/Polarfox-DEX/polarfox-core"
@@ -31,8 +31,10 @@
     "lint": "yarn prettier ./test/*.ts --check",
     "lint:fix": "yarn prettier ./test/*.ts --write",
     "clean": "rimraf ./build/",
+    "flatten": "waffle flatten .waffle.json",
     "precompile": "yarn clean",
     "compile": "waffle .waffle.json",
+    "postcompile": "yarn flatten",
     "pretest": "yarn compile",
     "test": "mocha",
     "prepublishOnly": "yarn test",

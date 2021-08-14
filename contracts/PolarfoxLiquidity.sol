@@ -43,25 +43,38 @@ contract PolarfoxLiquidity is IPolarfoxLiquidity {
         return _holders;
     }
 
-    function _mint(address to, uint value) internal {
+    function increaseBalance(address _address, uint value) private {
         // Add to holders if necessary
-        if (value > 0 && balanceOf[to] == 0) {
-            holdersIndex[to] = _holders.length;
-            _holders.push(to);
+        if (value > 0 && balanceOf[_address] == 0) {
+            holdersIndex[_address] = _holders.length;
+            _holders.push(_address);
         }
+
+        // Increase balance
+        balanceOf[_address] = balanceOf[_address].add(value);
+    }
+
+    function decreaseBalance(address _address, uint value) private {
+        // Decrease balance
+        balanceOf[_address] = balanceOf[_address].sub(value);
+
+        // Remove from holders if neccessary
+        if (balanceOf[_address] == 0) {
+            _holders[holdersIndex[_address]] = _holders[_holders.length-1];
+            holdersIndex[_holders[_holders.length-1]] = holdersIndex[_address];
+            _holders.pop();
+        }
+    }
+
+    function _mint(address to, uint value) internal {
+        increaseBalance(to, value);
         totalSupply = totalSupply.add(value);
-        balanceOf[to] = balanceOf[to].add(value);
+
         emit Transfer(address(0), to, value);
     }
 
     function _burn(address from, uint value) internal {
-        balanceOf[from] = balanceOf[from].sub(value);
-        // Remove from holders if necessary
-        if (balanceOf[from] == 0) {
-            _holders[holdersIndex[from]] = _holders[_holders.length-1];
-            holdersIndex[_holders[_holders.length-1]] = holdersIndex[from];
-            _holders.pop();
-        }
+        decreaseBalance(from, value);
         totalSupply = totalSupply.sub(value);
         emit Transfer(from, address(0), value);
     }
@@ -72,8 +85,9 @@ contract PolarfoxLiquidity is IPolarfoxLiquidity {
     }
 
     function _transfer(address from, address to, uint value) private {
-        balanceOf[from] = balanceOf[from].sub(value);
-        balanceOf[to] = balanceOf[to].add(value);
+        decreaseBalance(from, value);
+        increaseBalance(to, value);
+
         emit Transfer(from, to, value);
     }
 

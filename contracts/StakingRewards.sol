@@ -114,12 +114,15 @@ contract StakingRewards is IStakingRewards, RewardsDistributionRecipient, Reentr
         require(amount > 0, "Cannot withdraw 0");
         _totalSupply = _totalSupply.sub(amount);
         _balances[msg.sender] = _balances[msg.sender].sub(amount);
+
          // Remove from holders if necessary
         if (_balances[msg.sender] == 0) {
             _holders[holdersIndex[msg.sender]] = _holders[_holders.length-1];
             holdersIndex[_holders[_holders.length-1]] = holdersIndex[msg.sender];
+            delete holdersIndex[msg.sender];
             _holders.pop();
         }
+
         stakingToken.safeTransfer(msg.sender, amount);
         emit Withdrawn(msg.sender, amount);
     }

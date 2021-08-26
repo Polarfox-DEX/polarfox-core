@@ -1,7 +1,9 @@
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.5.16;
 
 import './interfaces/IStakingRewards.sol';
 import './interfaces/IERC20.sol';
+import './interfaces/IPFX.sol';
 import './interfaces/IPolarfoxLiquidity.sol';
 import './libraries/RewardsDistributionRecipient.sol';
 import './libraries/ReentrancyGuard.sol';
@@ -12,6 +14,8 @@ import './libraries/Math.sol';
 contract StakingRewards is IStakingRewards, RewardsDistributionRecipient, ReentrancyGuard {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
+
+    uint public constant TOTAL_SUPPLY_DENOMINATOR = 10000000;
 
     /* ========== STATE VARIABLES ========== */
 
@@ -26,35 +30,45 @@ contract StakingRewards is IStakingRewards, RewardsDistributionRecipient, Reentr
     mapping(address => uint256) public userRewardPerTokenPaid;
     mapping(address => uint256) public rewards;
 
-    uint256 private _totalSupply;
-    address[] private _holders; // Used by PFX token mechanics
-    mapping(address => uint) public holdersIndex; // Used to avoid resorting to a loop when removing holders
-    mapping(address => uint256) private _balances;
+    uint256 private totalSupply_;
+    uint public topHoldersSupply;
+    address public pfx;
+    address[] public topHolders_; // Used by PFX token mechanics
+    mapping(address => uint) public topHoldersIndex; // Used to avoid resorting to a loop when removing holders
+    mapping(address => bool) public isTopHolder;
+    mapping(address => uint256) private balances_;
 
     /* ========== CONSTRUCTOR ========== */
 
     constructor(
         address _rewardsDistribution,
         address _rewardsToken,
-        address _stakingToken
+        address _stakingToken,
+        address _pfx
     ) public {
         rewardsToken = IERC20(_rewardsToken);
         stakingToken = IERC20(_stakingToken);
         rewardsDistribution = _rewardsDistribution;
+        
+        // Set the PFX address
+        pfx = _pfx;
+
+        // Set the top holder supply
+        topHoldersSupply = 0;
     }
 
     /* ========== VIEWS ========== */
 
     function totalSupply() external view returns (uint256) {
-        return _totalSupply;
+        return totalSupply_;
     }
 
-    function holders() external view returns (address[] memory) {
-        return _holders;
+    function topHolders() external view returns (address[] memory) {
+        return topHolders_;
     }
 
     function balanceOf(address account) external view returns (uint256) {
-        return _balances[account];
+        return balances_[account];
     }
 
     function lastTimeRewardApplicable() public view returns (uint256) {
@@ -62,17 +76,17 @@ contract StakingRewards is IStakingRewards, RewardsDistributionRecipient, Reentr
     }
 
     function rewardPerToken() public view returns (uint256) {
-        if (_totalSupply == 0) {
+        if (totalSupply_ == 0) {
             return rewardPerTokenStored;
         }
         return
             rewardPerTokenStored.add(
-                lastTimeRewardApplicable().sub(lastUpdateTime).mul(rewardRate).mul(1e18).div(_totalSupply)
+                lastTimeRewardApplicable().sub(lastUpdateTime).mul(rewardRate).mul(1e18).div(totalSupply_)
             );
     }
 
     function earned(address account) public view returns (uint256) {
-        return _balances[account].mul(rewardPerToken().sub(userRewardPerTokenPaid[account])).div(1e18).add(rewards[account]);
+        return balances_[account].mul(rewardPerToken().sub(userRewardPerTokenPaid[account])).div(1e18).add(rewards[account]);
     }
 
     function getRewardForDuration() external view returns (uint256) {
@@ -83,12 +97,30 @@ contract StakingRewards is IStakingRewards, RewardsDistributionRecipient, Reentr
 
     function stakeWithPermit(uint256 amount, uint deadline, uint8 v, bytes32 r, bytes32 s) external nonReentrant updateReward(msg.sender) {
         require(amount > 0, "Cannot stake 0");
-        _totalSupply = _totalSupply.add(amount);
-        if (amount > 0 && _balances[msg.sender] == 0) {
-            holdersIndex[msg.sender] = _holders.length;
-            _holders.push(msg.sender);
+
+        // Get the PFX rewards threshold
+        uint256 rewardsThreshold = IPFX(pfx).rewardsThreshold();
+
+        // Add to top holders if necessary
+        if (!isTopHolder[msg.sender] && amount >= rewardsThreshold.mul(totalSupply_).div(TOTAL_SUPPLY_DENOMINATOR)) {
+            // Mark the address as a top holder
+            isTopHolder[msg.sender] = true;
+
+            // Push the address at the end of the topHolders_ array
+            topHoldersIndex[msg.sender] = topHolders_.length;
+            topHolders_.push(msg.sender);
+
+            // Update the total supply accordingly
+            topHoldersSupply = topHoldersSupply.add(amount);
         }
-        _balances[msg.sender] = _balances[msg.sender].add(amount);
+
+        // If the address already is a top holder
+        else if (isTopHolder[msg.sender]) {
+            // Update the total supply accordingly
+            topHoldersSupply = topHoldersSupply.add(amount);
+        }
+
+        balances_[msg.sender] = balances_[msg.sender].add(amount);
 
         // permit
         IPolarfoxLiquidity(address(stakingToken)).permit(msg.sender, address(this), amount, deadline, v, r, s);
@@ -99,28 +131,70 @@ contract StakingRewards is IStakingRewards, RewardsDistributionRecipient, Reentr
 
     function stake(uint256 amount) external nonReentrant updateReward(msg.sender) {
         require(amount > 0, "Cannot stake 0");
-        _totalSupply = _totalSupply.add(amount);
-        // Add to holders if necessary
-        if (amount > 0 && _balances[msg.sender] == 0) {
-            holdersIndex[msg.sender] = _holders.length;
-            _holders.push(msg.sender);
+        totalSupply_ = totalSupply_.add(amount);
+
+        // Get the PFX rewards threshold
+        uint256 rewardsThreshold = IPFX(pfx).rewardsThreshold();
+
+        // Add to top holders if necessary
+        if (!isTopHolder[msg.sender] && amount >= rewardsThreshold.mul(totalSupply_).div(TOTAL_SUPPLY_DENOMINATOR)) {
+            // Mark the address as a top holder
+            isTopHolder[msg.sender] = true;
+
+            // Push the address at the end of the topHolders_ array
+            topHoldersIndex[msg.sender] = topHolders_.length;
+            topHolders_.push(msg.sender);
+
+            // Update the total supply accordingly
+            topHoldersSupply = topHoldersSupply.add(amount);
         }
-        _balances[msg.sender] = _balances[msg.sender].add(amount);
+
+        // If the address already is a top holder
+        else if (isTopHolder[msg.sender]) {
+            // Update the total supply accordingly
+            topHoldersSupply = topHoldersSupply.add(amount);
+        }
+
+        balances_[msg.sender] = balances_[msg.sender].add(amount);
         stakingToken.safeTransferFrom(msg.sender, address(this), amount);
         emit Staked(msg.sender, amount);
     }
 
     function withdraw(uint256 amount) public nonReentrant updateReward(msg.sender) {
         require(amount > 0, "Cannot withdraw 0");
-        _totalSupply = _totalSupply.sub(amount);
-        _balances[msg.sender] = _balances[msg.sender].sub(amount);
 
-         // Remove from holders if necessary
-        if (_balances[msg.sender] == 0) {
-            _holders[holdersIndex[msg.sender]] = _holders[_holders.length-1];
-            holdersIndex[_holders[_holders.length-1]] = holdersIndex[msg.sender];
-            delete holdersIndex[msg.sender];
-            _holders.pop();
+        // Get the PFX rewards threshold
+        uint256 rewardsThreshold = IPFX(pfx).rewardsThreshold();
+
+        // Store the previous balance
+        uint previousBalance = balances_[msg.sender];
+        
+        totalSupply_ = totalSupply_.sub(amount);
+        balances_[msg.sender] = balances_[msg.sender].sub(amount);
+
+        // Remove from top holders if necessary
+        if (isTopHolder[msg.sender] && balances_[msg.sender] < rewardsThreshold.mul(totalSupply_).div(TOTAL_SUPPLY_DENOMINATOR)) {
+            // Mark the address as not a top holder
+            isTopHolder[msg.sender] = false;
+
+            // Move the last address in the topHolders_ array in the place of the address we just removed
+            topHolders_[topHoldersIndex[msg.sender]] = topHolders_[topHolders_.length-1];
+            topHoldersIndex[topHolders_[topHolders_.length-1]] = topHoldersIndex[msg.sender];
+
+            // Delete this address from the topHoldersIndex mapping
+            delete topHoldersIndex[msg.sender];
+
+            // Remove the last address from the topHolders_ array
+            topHolders_.pop();
+
+            // Update the total supply accordingly
+            topHoldersSupply = topHoldersSupply.sub(previousBalance);
+        }
+
+        // If the address still is a top holder after the withdrawal
+        else if (isTopHolder[msg.sender]) {
+            // Update the total supply accordingly
+            topHoldersSupply = topHoldersSupply.sub(amount);
         }
 
         stakingToken.safeTransfer(msg.sender, amount);
@@ -137,7 +211,7 @@ contract StakingRewards is IStakingRewards, RewardsDistributionRecipient, Reentr
     }
 
     function exit() external {
-        withdraw(_balances[msg.sender]);
+        withdraw(balances_[msg.sender]);
         getReward();
     }
 

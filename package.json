@@ -42,17 +42,17 @@
   },
   "dependencies": {
     "@ethersproject/solidity": "^5.0.10",
-    "bignumber.js": "^9.0.1",
     "@truffle/hdwallet-provider": "1.4.0",
+    "bignumber.js": "^9.0.1",
     "web3": "^1.0.0-beta.35"
   },
   "devDependencies": {
     "@types/chai": "^4.2.6",
     "@types/mocha": "^5.2.7",
     "chai": "^4.2.0",
+    "eslint": "^7.27.0",
     "ethereum-waffle": "^2.4.1",
     "ethereumjs-util": "^6.2.0",
-    "eslint": "^7.27.0",
     "mocha": "^6.2.2",
     "prettier": "^1.19.1",
     "rimraf": "^3.0.0",

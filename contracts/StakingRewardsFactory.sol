@@ -1,9 +1,9 @@
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.5.16;
 
 import './StakingRewards.sol';
 import './interfaces/IERC20.sol';
 import './libraries/Ownable.sol';
-
 
 contract StakingRewardsFactory is Ownable {
     // immutables
@@ -12,6 +12,9 @@ contract StakingRewardsFactory is Ownable {
 
     // the staking tokens for which the rewards contract has been deployed
     address[] public stakingTokens;
+
+    // The PFX token address
+    address public pfx;
 
     // info about rewards for a particular staking token
     struct StakingRewardsInfo {
@@ -24,12 +27,16 @@ contract StakingRewardsFactory is Ownable {
 
     constructor(
         address _rewardsToken,
-        uint _stakingRewardsGenesis
+        uint _stakingRewardsGenesis,
+        address _pfx
     ) Ownable() public {
         require(_stakingRewardsGenesis >= block.timestamp, 'StakingRewardsFactory::constructor: genesis too soon');
 
         rewardsToken = _rewardsToken;
         stakingRewardsGenesis = _stakingRewardsGenesis;
+
+        // Set the PFX address
+        pfx = _pfx;
     }
 
     ///// permissioned functions
@@ -40,7 +47,7 @@ contract StakingRewardsFactory is Ownable {
         StakingRewardsInfo storage info = stakingRewardsInfoByStakingToken[stakingToken];
         require(info.stakingRewards == address(0), 'StakingRewardsFactory::deploy: already deployed');
 
-        info.stakingRewards = address(new StakingRewards(/*_rewardsDistribution=*/ address(this), rewardsToken, stakingToken));
+        info.stakingRewards = address(new StakingRewards(/*_rewardsDistribution=*/ address(this), rewardsToken, stakingToken, pfx));
         info.rewardAmount = rewardAmount;
         stakingTokens.push(stakingToken);
     }

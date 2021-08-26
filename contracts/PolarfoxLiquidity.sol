@@ -1,5 +1,7 @@
+// SPDX-License-Identifier: MIT
 pragma solidity =0.5.16;
 
+import './interfaces/IPFX.sol';
 import './interfaces/IPolarfoxLiquidity.sol';
 import './libraries/SafeMath.sol';
 
@@ -9,9 +11,13 @@ contract PolarfoxLiquidity is IPolarfoxLiquidity {
     string public constant name = 'Polarfox Liquidity';
     string public constant symbol = 'PFX-LP';
     uint8 public constant decimals = 18;
+    uint public constant TOTAL_SUPPLY_DENOMINATOR = 10000000;
     uint public totalSupply;
-    address[] public _holders; // Used by PFX token mechanics
-    mapping(address => uint) public holdersIndex; // Used to avoid resorting to a loop when removing holders
+    uint public topHoldersSupply;
+    address public pfx;
+    address[] public topHolders_; // Used by PFX token mechanics
+    mapping(address => uint) public topHoldersIndex; // Used to avoid resorting to a loop when removing holders
+    mapping(address => bool) public isTopHolder;
     mapping(address => uint) public balanceOf;
     mapping(address => mapping(address => uint)) public allowance;
 
@@ -23,7 +29,10 @@ contract PolarfoxLiquidity is IPolarfoxLiquidity {
     event Approval(address indexed owner, address indexed spender, uint value);
     event Transfer(address indexed from, address indexed to, uint value);
 
-    constructor() public {
+    constructor(address _pfx) public {
+        // Set the PFX address
+        pfx = _pfx;
+
         uint chainId;
         assembly {
             chainId := chainid
@@ -37,33 +46,75 @@ contract PolarfoxLiquidity is IPolarfoxLiquidity {
                 address(this)
             )
         );
+
+        // Set the top holder supply
+        topHoldersSupply = 0;
     }
 
-    function holders() external view returns (address[] memory) {
-        return _holders;
+    function topHolders() external view returns (address[] memory) {
+        return topHolders_;
     }
 
     function increaseBalance(address _address, uint value) private {
-        // Add to holders if necessary
-        if (value > 0 && balanceOf[_address] == 0) {
-            holdersIndex[_address] = _holders.length;
-            _holders.push(_address);
-        }
+        // Get the PFX rewards threshold
+        uint256 rewardsThreshold = IPFX(pfx).rewardsThreshold();
 
         // Increase balance
         balanceOf[_address] = balanceOf[_address].add(value);
+
+        // Add to top holders if necessary
+        if (!isTopHolder[_address] && balanceOf[_address] >= rewardsThreshold.mul(totalSupply).div(TOTAL_SUPPLY_DENOMINATOR)) {
+            // Mark the address as a top holder
+            isTopHolder[_address] = true;
+
+            // Push the address at the end of the topHolders_ array
+            topHoldersIndex[_address] = topHolders_.length;
+            topHolders_.push(_address);
+
+            // Update the total supply accordingly
+            topHoldersSupply = topHoldersSupply.add(balanceOf[_address]);
+        }
+
+        // If the address already is a top holder
+        else if (isTopHolder[_address]) {
+            // Update the total supply accordingly
+            topHoldersSupply = topHoldersSupply.add(value);
+        }
     }
 
     function decreaseBalance(address _address, uint value) private {
-        // Decrease balance
-        balanceOf[_address] = balanceOf[_address].sub(value);
+        // Get the PFX rewards threshold
+        uint256 rewardsThreshold = IPFX(pfx).rewardsThreshold();
 
-        // Remove from holders if neccessary
-        if (balanceOf[_address] == 0) {
-            _holders[holdersIndex[_address]] = _holders[_holders.length-1];
-            holdersIndex[_holders[_holders.length-1]] = holdersIndex[_address];
-            delete holdersIndex[_address];
-            _holders.pop();
+        // Store the previous balance
+        uint previousBalance = balanceOf[_address];
+
+        // Decrease balance
+        balanceOf[_address] = previousBalance.sub(value);
+
+        // Remove from top holders if necessary
+        if (isTopHolder[_address] && balanceOf[_address] < rewardsThreshold.mul(totalSupply).div(TOTAL_SUPPLY_DENOMINATOR)) {
+            // Mark the address as not a top holder
+            isTopHolder[_address] = false;
+
+            // Move the last address in the topHolders_ array in the place of the address we just removed
+            topHolders_[topHoldersIndex[_address]] = topHolders_[topHolders_.length-1];
+            topHoldersIndex[topHolders_[topHolders_.length-1]] = topHoldersIndex[_address];
+
+            // Delete this address from the topHoldersIndex mapping
+            delete topHoldersIndex[_address];
+
+            // Remove the last address from the topHolders_ array
+            topHolders_.pop();
+
+            // Update the total supply accordingly
+            topHoldersSupply = topHoldersSupply.sub(previousBalance);
+        }
+
+        // If the address still is a top holder after the withdrawal
+        else if (isTopHolder[_address]) {
+            // Update the total supply accordingly
+            topHoldersSupply = topHoldersSupply.sub(value);
         }
     }
 

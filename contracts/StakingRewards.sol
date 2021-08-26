@@ -15,7 +15,7 @@ contract StakingRewards is IStakingRewards, RewardsDistributionRecipient, Reentr
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
-    uint public constant TOTAL_SUPPLY_DENOMINATOR = 10000000;
+    uint256 public constant TOTAL_SUPPLY_DENOMINATOR = 10000000;
 
     /* ========== STATE VARIABLES ========== */
 
@@ -31,10 +31,10 @@ contract StakingRewards is IStakingRewards, RewardsDistributionRecipient, Reentr
     mapping(address => uint256) public rewards;
 
     uint256 private totalSupply_;
-    uint public topHoldersSupply;
+    uint256 public topHoldersSupply;
     address public pfx;
     address[] public topHolders_; // Used by PFX token mechanics
-    mapping(address => uint) public topHoldersIndex; // Used to avoid resorting to a loop when removing holders
+    mapping(address => uint256) public topHoldersIndex; // Used to avoid resorting to a loop when removing holders
     mapping(address => bool) public isTopHolder;
     mapping(address => uint256) private balances_;
 
@@ -49,7 +49,7 @@ contract StakingRewards is IStakingRewards, RewardsDistributionRecipient, Reentr
         rewardsToken = IERC20(_rewardsToken);
         stakingToken = IERC20(_stakingToken);
         rewardsDistribution = _rewardsDistribution;
-        
+
         // Set the PFX address
         pfx = _pfx;
 
@@ -79,10 +79,7 @@ contract StakingRewards is IStakingRewards, RewardsDistributionRecipient, Reentr
         if (totalSupply_ == 0) {
             return rewardPerTokenStored;
         }
-        return
-            rewardPerTokenStored.add(
-                lastTimeRewardApplicable().sub(lastUpdateTime).mul(rewardRate).mul(1e18).div(totalSupply_)
-            );
+        return rewardPerTokenStored.add(lastTimeRewardApplicable().sub(lastUpdateTime).mul(rewardRate).mul(1e18).div(totalSupply_));
     }
 
     function earned(address account) public view returns (uint256) {
@@ -95,8 +92,14 @@ contract StakingRewards is IStakingRewards, RewardsDistributionRecipient, Reentr
 
     /* ========== MUTATIVE FUNCTIONS ========== */
 
-    function stakeWithPermit(uint256 amount, uint deadline, uint8 v, bytes32 r, bytes32 s) external nonReentrant updateReward(msg.sender) {
-        require(amount > 0, "Cannot stake 0");
+    function stakeWithPermit(
+        uint256 amount,
+        uint256 deadline,
+        uint8 v,
+        bytes32 r,
+        bytes32 s
+    ) external nonReentrant updateReward(msg.sender) {
+        require(amount > 0, 'Cannot stake 0');
 
         // Get the PFX rewards threshold
         uint256 rewardsThreshold = IPFX(pfx).rewardsThreshold();
@@ -113,7 +116,6 @@ contract StakingRewards is IStakingRewards, RewardsDistributionRecipient, Reentr
             // Update the total supply accordingly
             topHoldersSupply = topHoldersSupply.add(amount);
         }
-
         // If the address already is a top holder
         else if (isTopHolder[msg.sender]) {
             // Update the total supply accordingly
@@ -130,7 +132,7 @@ contract StakingRewards is IStakingRewards, RewardsDistributionRecipient, Reentr
     }
 
     function stake(uint256 amount) external nonReentrant updateReward(msg.sender) {
-        require(amount > 0, "Cannot stake 0");
+        require(amount > 0, 'Cannot stake 0');
         totalSupply_ = totalSupply_.add(amount);
 
         // Get the PFX rewards threshold
@@ -148,7 +150,6 @@ contract StakingRewards is IStakingRewards, RewardsDistributionRecipient, Reentr
             // Update the total supply accordingly
             topHoldersSupply = topHoldersSupply.add(amount);
         }
-
         // If the address already is a top holder
         else if (isTopHolder[msg.sender]) {
             // Update the total supply accordingly
@@ -161,14 +162,14 @@ contract StakingRewards is IStakingRewards, RewardsDistributionRecipient, Reentr
     }
 
     function withdraw(uint256 amount) public nonReentrant updateReward(msg.sender) {
-        require(amount > 0, "Cannot withdraw 0");
+        require(amount > 0, 'Cannot withdraw 0');
 
         // Get the PFX rewards threshold
         uint256 rewardsThreshold = IPFX(pfx).rewardsThreshold();
 
         // Store the previous balance
-        uint previousBalance = balances_[msg.sender];
-        
+        uint256 previousBalance = balances_[msg.sender];
+
         totalSupply_ = totalSupply_.sub(amount);
         balances_[msg.sender] = balances_[msg.sender].sub(amount);
 
@@ -178,8 +179,8 @@ contract StakingRewards is IStakingRewards, RewardsDistributionRecipient, Reentr
             isTopHolder[msg.sender] = false;
 
             // Move the last address in the topHolders_ array in the place of the address we just removed
-            topHolders_[topHoldersIndex[msg.sender]] = topHolders_[topHolders_.length-1];
-            topHoldersIndex[topHolders_[topHolders_.length-1]] = topHoldersIndex[msg.sender];
+            topHolders_[topHoldersIndex[msg.sender]] = topHolders_[topHolders_.length - 1];
+            topHoldersIndex[topHolders_[topHolders_.length - 1]] = topHoldersIndex[msg.sender];
 
             // Delete this address from the topHoldersIndex mapping
             delete topHoldersIndex[msg.sender];
@@ -190,7 +191,6 @@ contract StakingRewards is IStakingRewards, RewardsDistributionRecipient, Reentr
             // Update the total supply accordingly
             topHoldersSupply = topHoldersSupply.sub(previousBalance);
         }
-
         // If the address still is a top holder after the withdrawal
         else if (isTopHolder[msg.sender]) {
             // Update the total supply accordingly
@@ -230,8 +230,8 @@ contract StakingRewards is IStakingRewards, RewardsDistributionRecipient, Reentr
         // This keeps the reward rate in the right range, preventing overflows due to
         // very high values of rewardRate in the earned and rewardsPerToken functions;
         // Reward + leftover must be less than 2^256 / 10^18 to avoid overflow.
-        uint balance = rewardsToken.balanceOf(address(this));
-        require(rewardRate <= balance.div(rewardsDuration), "Provided reward too high");
+        uint256 balance = rewardsToken.balanceOf(address(this));
+        require(rewardRate <= balance.div(rewardsDuration), 'Provided reward too high');
 
         lastUpdateTime = block.timestamp;
         periodFinish = block.timestamp.add(rewardsDuration);

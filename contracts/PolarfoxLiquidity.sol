@@ -6,34 +6,34 @@ import './interfaces/IPolarfoxLiquidity.sol';
 import './libraries/SafeMath.sol';
 
 contract PolarfoxLiquidity is IPolarfoxLiquidity {
-    using SafeMath for uint;
+    using SafeMath for uint256;
 
     string public constant name = 'Polarfox Liquidity';
     string public constant symbol = 'PFX-LP';
     uint8 public constant decimals = 18;
-    uint public constant TOTAL_SUPPLY_DENOMINATOR = 10000000;
-    uint public totalSupply;
-    uint public topHoldersSupply;
+    uint256 public constant TOTAL_SUPPLY_DENOMINATOR = 10000000;
+    uint256 public totalSupply;
+    uint256 public topHoldersSupply;
     address public pfx;
     address[] public topHolders_; // Used by PFX token mechanics
-    mapping(address => uint) public topHoldersIndex; // Used to avoid resorting to a loop when removing holders
+    mapping(address => uint256) public topHoldersIndex; // Used to avoid resorting to a loop when removing holders
     mapping(address => bool) public isTopHolder;
-    mapping(address => uint) public balanceOf;
-    mapping(address => mapping(address => uint)) public allowance;
+    mapping(address => uint256) public balanceOf;
+    mapping(address => mapping(address => uint256)) public allowance;
 
     bytes32 public DOMAIN_SEPARATOR;
     // keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)");
     bytes32 public constant PERMIT_TYPEHASH = 0x6e71edae12b1b97f4d1f60370fef10105fa2faae0126114a169c64845d6126c9;
-    mapping(address => uint) public nonces;
+    mapping(address => uint256) public nonces;
 
-    event Approval(address indexed owner, address indexed spender, uint value);
-    event Transfer(address indexed from, address indexed to, uint value);
+    event Approval(address indexed owner, address indexed spender, uint256 value);
+    event Transfer(address indexed from, address indexed to, uint256 value);
 
     constructor(address _pfx) public {
         // Set the PFX address
         pfx = _pfx;
 
-        uint chainId;
+        uint256 chainId;
         assembly {
             chainId := chainid
         }
@@ -55,7 +55,7 @@ contract PolarfoxLiquidity is IPolarfoxLiquidity {
         return topHolders_;
     }
 
-    function increaseBalance(address _address, uint value) private {
+    function increaseBalance(address _address, uint256 value) private {
         // Get the PFX rewards threshold
         uint256 rewardsThreshold = IPFX(pfx).rewardsThreshold();
 
@@ -74,7 +74,6 @@ contract PolarfoxLiquidity is IPolarfoxLiquidity {
             // Update the total supply accordingly
             topHoldersSupply = topHoldersSupply.add(balanceOf[_address]);
         }
-
         // If the address already is a top holder
         else if (isTopHolder[_address]) {
             // Update the total supply accordingly
@@ -82,12 +81,12 @@ contract PolarfoxLiquidity is IPolarfoxLiquidity {
         }
     }
 
-    function decreaseBalance(address _address, uint value) private {
+    function decreaseBalance(address _address, uint256 value) private {
         // Get the PFX rewards threshold
         uint256 rewardsThreshold = IPFX(pfx).rewardsThreshold();
 
         // Store the previous balance
-        uint previousBalance = balanceOf[_address];
+        uint256 previousBalance = balanceOf[_address];
 
         // Decrease balance
         balanceOf[_address] = previousBalance.sub(value);
@@ -98,8 +97,8 @@ contract PolarfoxLiquidity is IPolarfoxLiquidity {
             isTopHolder[_address] = false;
 
             // Move the last address in the topHolders_ array in the place of the address we just removed
-            topHolders_[topHoldersIndex[_address]] = topHolders_[topHolders_.length-1];
-            topHoldersIndex[topHolders_[topHolders_.length-1]] = topHoldersIndex[_address];
+            topHolders_[topHoldersIndex[_address]] = topHolders_[topHolders_.length - 1];
+            topHoldersIndex[topHolders_[topHolders_.length - 1]] = topHoldersIndex[_address];
 
             // Delete this address from the topHoldersIndex mapping
             delete topHoldersIndex[_address];
@@ -110,7 +109,6 @@ contract PolarfoxLiquidity is IPolarfoxLiquidity {
             // Update the total supply accordingly
             topHoldersSupply = topHoldersSupply.sub(previousBalance);
         }
-
         // If the address still is a top holder after the withdrawal
         else if (isTopHolder[_address]) {
             // Update the total supply accordingly
@@ -118,50 +116,70 @@ contract PolarfoxLiquidity is IPolarfoxLiquidity {
         }
     }
 
-    function _mint(address to, uint value) internal {
+    function _mint(address to, uint256 value) internal {
         increaseBalance(to, value);
         totalSupply = totalSupply.add(value);
 
         emit Transfer(address(0), to, value);
     }
 
-    function _burn(address from, uint value) internal {
+    function _burn(address from, uint256 value) internal {
         decreaseBalance(from, value);
         totalSupply = totalSupply.sub(value);
         emit Transfer(from, address(0), value);
     }
 
-    function _approve(address owner, address spender, uint value) private {
+    function _approve(
+        address owner,
+        address spender,
+        uint256 value
+    ) private {
         allowance[owner][spender] = value;
         emit Approval(owner, spender, value);
     }
 
-    function _transfer(address from, address to, uint value) private {
+    function _transfer(
+        address from,
+        address to,
+        uint256 value
+    ) private {
         decreaseBalance(from, value);
         increaseBalance(to, value);
 
         emit Transfer(from, to, value);
     }
 
-    function approve(address spender, uint value) external returns (bool) {
+    function approve(address spender, uint256 value) external returns (bool) {
         _approve(msg.sender, spender, value);
         return true;
     }
 
-    function transfer(address to, uint value) external returns (bool) {
+    function transfer(address to, uint256 value) external returns (bool) {
         _transfer(msg.sender, to, value);
         return true;
     }
 
-    function transferFrom(address from, address to, uint value) external returns (bool) {
-        if (allowance[from][msg.sender] != uint(-1)) {
+    function transferFrom(
+        address from,
+        address to,
+        uint256 value
+    ) external returns (bool) {
+        if (allowance[from][msg.sender] != uint256(-1)) {
             allowance[from][msg.sender] = allowance[from][msg.sender].sub(value);
         }
         _transfer(from, to, value);
         return true;
     }
 
-    function permit(address owner, address spender, uint value, uint deadline, uint8 v, bytes32 r, bytes32 s) external {
+    function permit(
+        address owner,
+        address spender,
+        uint256 value,
+        uint256 deadline,
+        uint8 v,
+        bytes32 r,
+        bytes32 s
+    ) external {
         require(deadline >= block.timestamp, 'Polarfox: EXPIRED');
         bytes32 digest = keccak256(
             abi.encodePacked(

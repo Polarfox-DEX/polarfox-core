@@ -1,27 +1,27 @@
+// SPDX-License-Identifier: MIT
 pragma solidity =0.5.16;
 
 // a library for performing overflow-safe math, courtesy of DappHub (https://github.com/dapphub/ds-math)
 
 library SafeMath {
-    function add(uint x, uint y) internal pure returns (uint z) {
+    function add(uint256 x, uint256 y) internal pure returns (uint256 z) {
         require((z = x + y) >= x, 'ds-math-add-overflow');
     }
 
-    function sub(uint x, uint y) internal pure returns (uint z) {
+    function sub(uint256 x, uint256 y) internal pure returns (uint256 z) {
         require((z = x - y) <= x, 'ds-math-sub-underflow');
     }
 
-    function mul(uint x, uint y) internal pure returns (uint z) {
+    function mul(uint256 x, uint256 y) internal pure returns (uint256 z) {
         require(y == 0 || (z = x * y) / y == x, 'ds-math-mul-overflow');
     }
 
-    function div(uint a, uint b) internal pure returns (uint) {
+    function div(uint256 a, uint256 b) internal pure returns (uint256) {
         // Solidity only automatically asserts when dividing by 0
-        require(b > 0, "ds-math-div-zero");
-        uint c = a / b;
+        require(b > 0, 'ds-math-div-zero');
+        uint256 c = a / b;
         // assert(a == b * c + a % b); // There is no case in which this doesn't hold
 
         return c;
     }
-
 }

@@ -1,22 +1,25 @@
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.5.16;
 
 import './StakingRewards.sol';
 import './interfaces/IERC20.sol';
 import './libraries/Ownable.sol';
 
-
 contract StakingRewardsFactory is Ownable {
     // immutables
     address public rewardsToken;
-    uint public stakingRewardsGenesis;
+    uint256 public stakingRewardsGenesis;
 
     // the staking tokens for which the rewards contract has been deployed
     address[] public stakingTokens;
 
+    // The PFX token address
+    address public pfx;
+
     // info about rewards for a particular staking token
     struct StakingRewardsInfo {
         address stakingRewards;
-        uint rewardAmount;
+        uint256 rewardAmount;
     }
 
     // rewards info by staking token
@@ -24,23 +27,35 @@ contract StakingRewardsFactory is Ownable {
 
     constructor(
         address _rewardsToken,
-        uint _stakingRewardsGenesis
-    ) Ownable() public {
+        uint256 _stakingRewardsGenesis,
+        address _pfx
+    ) public Ownable() {
         require(_stakingRewardsGenesis >= block.timestamp, 'StakingRewardsFactory::constructor: genesis too soon');
 
         rewardsToken = _rewardsToken;
         stakingRewardsGenesis = _stakingRewardsGenesis;
+
+        // Set the PFX address
+        pfx = _pfx;
     }
 
     ///// permissioned functions
 
     // deploy a staking reward contract for the staking token, and store the reward amount
     // the reward will be distributed to the staking reward contract no sooner than the genesis
-    function deploy(address stakingToken, uint rewardAmount) public onlyOwner {
+    function deploy(address stakingToken, uint256 rewardAmount) public onlyOwner {
         StakingRewardsInfo storage info = stakingRewardsInfoByStakingToken[stakingToken];
         require(info.stakingRewards == address(0), 'StakingRewardsFactory::deploy: already deployed');
 
-        info.stakingRewards = address(new StakingRewards(/*_rewardsDistribution=*/ address(this), rewardsToken, stakingToken));
+        info.stakingRewards = address(
+            new StakingRewards(
+                /*_rewardsDistribution=*/
+                address(this),
+                rewardsToken,
+                stakingToken,
+                pfx
+            )
+        );
         info.rewardAmount = rewardAmount;
         stakingTokens.push(stakingToken);
     }
@@ -50,7 +65,7 @@ contract StakingRewardsFactory is Ownable {
     // call notifyRewardAmount for all staking tokens.
     function notifyRewardAmounts() public {
         require(stakingTokens.length > 0, 'StakingRewardsFactory::notifyRewardAmounts: called before any deploys');
-        for (uint i = 0; i < stakingTokens.length; i++) {
+        for (uint256 i = 0; i < stakingTokens.length; i++) {
             notifyRewardAmount(stakingTokens[i]);
         }
     }
@@ -64,7 +79,7 @@ contract StakingRewardsFactory is Ownable {
         require(info.stakingRewards != address(0), 'StakingRewardsFactory::notifyRewardAmount: not deployed');
 
         if (info.rewardAmount > 0) {
-            uint rewardAmount = info.rewardAmount;
+            uint256 rewardAmount = info.rewardAmount;
             info.rewardAmount = 0;
 
             require(

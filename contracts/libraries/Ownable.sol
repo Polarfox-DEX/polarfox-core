@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.5.16;
 
 /**
@@ -17,7 +18,7 @@ contract Ownable {
     /**
      * @dev Initializes the contract setting the deployer as the initial owner.
      */
-    constructor () internal {
+    constructor() internal {
         _owner = msg.sender;
         emit OwnershipTransferred(address(0), _owner);
     }
@@ -33,7 +34,7 @@ contract Ownable {
      * @dev Throws if called by any account other than the owner.
      */
     modifier onlyOwner() {
-        require(isOwner(), "Ownable: caller is not the owner");
+        require(isOwner(), 'Ownable: caller is not the owner');
         _;
     }
 
@@ -68,7 +69,7 @@ contract Ownable {
      * @dev Transfers ownership of the contract to a new account (`newOwner`).
      */
     function _transferOwnership(address newOwner) internal {
-        require(newOwner != address(0), "Ownable: new owner is the zero address");
+        require(newOwner != address(0), 'Ownable: new owner is the zero address');
         emit OwnershipTransferred(_owner, newOwner);
         _owner = newOwner;
     }

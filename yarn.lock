@@ -469,6 +469,11 @@
     "@ethersproject/properties" "^5.0.3"
     "@ethersproject/strings" "^5.0.4"
 
+"@polarfox/governance@^0.3.1":
+  version "0.3.1"
+  resolved "https://registry.yarnpkg.com/@polarfox/governance/-/governance-0.3.1.tgz#15f1b2577eaec2d3539a63daff70376479e19b66"
+  integrity sha512-xzHi4VOpbbn1xwSCIuzY0PIbZXArPQzyKqtMuNaFMBJqhckzNS0MevpXUviEkk0VRv5Npjh3fGZLBN9bSMDagQ==
+
 "@resolver-engine/core@^0.3.3":
   version "0.3.3"
   resolved "https://registry.yarnpkg.com/@resolver-engine/core/-/core-0.3.3.tgz#590f77d85d45bc7ecc4e06c654f41345db6ca967"
